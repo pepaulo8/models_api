@@ -14,7 +14,8 @@ class User(Resource):
 
     def post(self):
         _SECRET_KEY = current_app.config['SECRET_KEY']
-        _LIMIT = datetime.timedelta(minutes=30)
+        _MINUTES = 30
+        _LIMIT = datetime.timedelta(minutes=_MINUTES)
         request_json = request.get_json()
         login = request_json['login']
         password = request_json['password']
@@ -31,7 +32,8 @@ class User(Resource):
                                     'expiration': (datetime.datetime.utcnow() + _LIMIT).isoformat(),
                                     'exp': datetime.datetime.utcnow() + _LIMIT}, 
                                     _SECRET_KEY)
-                return jsonify({'AccessToken': token})
+                return jsonify({'AccessToken': token,
+                                'ValidMinutes': _MINUTES})
         return 'IncorrectCredentials', 401
 
     @classmethod

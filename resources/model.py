@@ -7,7 +7,9 @@ from security.security import token_required
 import pandas as pd
 import numpy as np
 
-PATH = "data/models"
+PATH = 'data/models'
+FIX_PREFIX = 'fix/fix_'
+H5_PREFIX = 'h5files/'
 StatusCode = {
     'OK':['Success', 200],             
     'NotFound':['ThereIsNoModelForThisComponent', 404]
@@ -22,11 +24,11 @@ class Model(Resource):
     atributos.add_argument('PM2.5_moqa',type=float)
     atributos.add_argument('NO2_moqa',type=float)
 
-    models_ = {'pm25':{"NeedsTreatment":True},
-               'pm10':{"NeedsTreatment":True},
-               'ur':{"NeedsTreatment":False},
-               'temp':{"NeedsTreatment":False},
-               'o3':{"NeedsTreatment":False}}
+    _models = {'pm25':{'NeedsTreatment':True},
+               'pm10':{'NeedsTreatment':True},
+               'ur':{'NeedsTreatment':False},
+               'temp':{'NeedsTreatment':False},
+               'o3':{'NeedsTreatment':False}}
     actual_model = None
 
     @token_required
@@ -49,11 +51,11 @@ class Model(Resource):
         h5_path = str()
         for s in path.split('/')[:-1]:
             h5_path += s+'/'
-        h5_path = h5_path + 'h5files/' + path.split('/')[-1]
+        h5_path = h5_path + H5_PREFIX + path.split('/')[-1]
         return keras.models.load_model(h5_path)
 
     def load_model(self, model_id, upper = True, is_fix = False):
-        if model_id not in self.models_ and not is_fix:
+        if model_id not in self._models:
             return None
         file_name = model_id.upper() if upper else model_id
         full_path = PATH + "/" + file_name + "_model.bin"
@@ -75,7 +77,8 @@ class Model(Resource):
 
         return model  
 
-    def round_method(self, predict_value):
+    @classmethod
+    def round_method(cls, predict_value):
         rounded = predict_value.astype('int')
         residual_value = predict_value - rounded
         mask = residual_value <= 0.5
@@ -84,7 +87,7 @@ class Model(Resource):
         return predict_value
 
     def round_model_method(self, model_id, data):
-        id = 'fix/fix_'+model_id
+        id = FIX_PREFIX+model_id
         model = self.load_model(id, upper = False, is_fix = True)
         data['adj'] = model.predict(data[data.columns[:-1]])
         data['prediction'].loc[data['adj']==1] = data['prediction'].loc[data['adj']==1].apply(lambda x : np.ceil(x))
@@ -106,7 +109,7 @@ class Model(Resource):
     
     def regression(self, model_id, data):
         predicts = self.actual_model['models']['modelo'].predict(data)
-        if Model.models_[model_id]["NeedsTreatment"]:
+        if Model._models[model_id]['NeedsTreatment']:
             if self.actual_model['models']['adjust']:
                 data['prediction'] = predicts
                 data = self.round_model_method(model_id, data)
